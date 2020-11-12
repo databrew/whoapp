@@ -5,7 +5,9 @@
 #' @import shinydashboard
 #' @import leaflet
 #' @import shiny
+#' @import plotly
 #' @import ggplot2
+#' @import RColorBrewer
 #' @import gt
 #' @import sp
 #' @import DT
@@ -31,22 +33,23 @@ app_ui <- function(request) {
             text="Main",
             tabName="main",
             icon=icon("archway")),
-         
+          
           menuItem(
             text = 'About',
             tabName = 'about',
             icon = icon("cog", lib = "glyphicon"))
         )),
       dashboardBody(
-        add_busy_spinner(
-          spin = "folding-cube",#  "self-building-square",
-          position = 'bottom-right',
-          onstart = TRUE,
-          height = '100px',
-          width = '100px',
-          margins = c(10, 10)#,
-          # color = 'de0000'
-        ),
+        
+        # add_busy_spinner(
+        #   spin = "folding-cube",#  "self-building-square",
+        #   position = 'bottom-right',
+        #   onstart = TRUE,
+        #   height = '100px',
+        #   width = '100px',
+        #   margins = c(10, 10)#,
+        #   # color = 'de0000'
+        # ),
         
         # tags$head(
         #   tags$link(rel = "stylesheet", type = "text/css", href = "custom.css")
@@ -55,9 +58,49 @@ app_ui <- function(request) {
         tabItems(
           tabItem(
             tabName="main",
-            fluidPage(
-              h1('Main page')
-            )),
+            navbarPage(
+              title = 'Analysis',
+              tabPanel('Country',
+                       fluidPage(
+                         fluidRow(
+                           column(4,
+                                  selectInput('country_1', 'Select country',choices = c(unique(dat$country)),selected = c(unique(dat$country)), multiple = TRUE),
+                                  uiOutput('ui_inputs_1')),
+                           column(8, 
+                                  plotlyOutput('bar_plot'))
+                         )
+                       )
+              ),
+              tabPanel('Indicator',
+                       fluidPage(
+                         fluidRow(
+                           column(4,
+                                  selectInput('ind_2', 'Select indicators',choices = c(unique(dat$indicator_code)),selected = c('cataincidence_q1', 'cataincidence_q2','cataincidence_q3', 'cataincidence_q4', 'cataincidence_q5'), multiple = TRUE),
+                                  uiOutput('ui_inputs_2')),
+                           column(8, 
+                                  plotlyOutput('point_plot'))
+                         )
+                       )
+                
+              ),
+              tabPanel('Map',
+                       fluidPage(
+                         fluidRow(
+                           column(3,
+                                  selectInput('year_3', 'Choose a year', choices=unique(dat$year), selected = sort(unique(dat$year))[1])),
+                           column(3,
+                                  uiOutput('ui_inputs_3')
+                                  ),
+                         ),
+                         fluidRow(
+                           column(12, leafletOutput('map_1'))
+                         )
+                         
+                       )
+                    )
+           
+            )
+           ),
           tabItem(
             tabName = 'about',
             make_about()
@@ -136,7 +179,165 @@ app_server <- function(input, output, session) {
   
   message('Working directory is :', getwd())
   
+  #  ANALYSIS BY COUNTRY SECTION ###########################
+  # render ui for other inputs based on country
+  output$ui_inputs_1 <- renderUI({
+    # country_names <- 'Bulgaria'
+    country_names <- input$country_1
+    if(is.null(country_names)){
+      NULL
+    } else {
+      pd <- whoapp::dat %>% dplyr::filter(country %in% country_names)
+      year_names <- sort(unique(pd$year))
+      ind_names <- sort(unique(pd$indicator_code))
+      # remove quintile ind (q1, q2, etc)
+      # ind_names <- ind_names[!grepl('_q', ind_names)]
+      fluidPage(
+        fluidRow(
+          selectInput('ind_1', 'Choose indicator', choices = ind_names, selected = ind_names[1]),
+          selectInput('year_1', 'Choose years', choices = year_names, selected = year_names, multiple = TRUE)
+        )
+      )
+    
+    }
+  })
+  
+  # bar plot
+  output$bar_plot <- renderPlotly({
+    country_names <- input$country_1
+    year_names <- input$year_1
+    ind_names <- input$ind_1
+    if(is.null(year_names)){
+      NULL
+    } else {
+      pd <- dat %>% filter(country %in% country_names, 
+                           year %in% year_names, 
+                           indicator_code %in% ind_names)
+      # save(pd, file = 'bar_pd.rda')
+      ggplot(pd, aes(year, value, fill=country)) +
+        geom_bar(stat='identity', position = 'dodge')
+      
+    }
+  })
+  
+  #  ANALYSIS BY INDICATOR SECTION ###########################
+  output$ui_inputs_2 <- renderUI({
+    # country_names <- 'Bulgaria'
+    ind_names <- input$ind_2
+    if(is.null(ind_names)){
+      NULL
+    } else {
+      pd <- whoapp::dat %>% dplyr::filter(indicator_code %in% ind_names)
+      year_names <- sort(unique(pd$year))
+      country_names <- sort(unique(pd$country))
+      # remove quintile ind (q1, q2, etc)
+      # ind_names <- ind_names[!grepl('_q', ind_names)]
+      fluidPage(
+        fluidRow(
+          selectInput('country_2', 'Choose a country', choices = country_names, selected = country_names[1]),
+          selectInput('year_2', 'Choose years', choices = year_names, selected = year_names, multiple = TRUE)
+        )
+      )
+      
+    }
+  })
+  
+  # point plot
+  output$point_plot <- renderPlotly({
+    country_names <- input$country_2
+    year_names <- input$year_2
+    ind_names <- input$ind_2
+    if(is.null(year_names)){
+      NULL
+    } else {
+      pd <- dat %>% filter(country %in% country_names, 
+                           year %in% year_names, 
+                           indicator_code %in% ind_names)
+      # save(pd, file = 'point_pd.rda')
+      ggplot(pd, aes(year, value, color=indicator_code)) +
+        geom_point() +
+        geom_line(aes(group=indicator_code))
 
+    }
+  })
+  
+  #  MAP SECTION ###########################
+  output$ui_inputs_3 <- renderUI({
+    # country_names <- 'Bulgaria'
+    year_name <- input$year_3
+    if(is.null(year_name)){
+      NULL
+    } else {
+      pd <- whoapp::dat %>% dplyr::filter(year == year_name)
+      ind_names <- sort(unique(pd$ind))
+      # remove quintile ind (q1, q2, etc)
+      # ind_names <- ind_names[!grepl('_q', ind_names)]
+      fluidPage(
+        fluidRow(
+          selectInput('ind_3', 'Choose an indicator', choices = ind_names, selected = ind_names[1]),
+        )
+      )
+      
+    }
+  })
+  
+  # map
+  output$map_1 <- renderLeaflet({
+    year_name <- input$year_3
+    ind_name <- input$ind_3
+    if(is.null(ind_name)){
+      NULL
+    } else {
+      pd <- whoapp::dat %>% filter(year==year_name,
+                           indicator_code==ind_name)
+      shp <- whoapp::world
+      shp@data <- shp@data %>% dplyr::left_join(pd, by=c('NAME'='country'))
+      na_rows <- which(!is.na(shp@data$value))
+      shp <- shp[na_rows,]
+      map_palette <- colorNumeric(palette = brewer.pal(9, "Greens"), domain=shp@data$value, na.color="white")
+     
+      # Make tooltip
+      map_text <- paste(
+        "Indicator: ",  shp@data$indicator_code,"<br>",
+        "Country: ", as.character(shp@data$NAME),"<br/>", 
+        "Value: ", paste0(round(shp@data$value, digits = 2)), "<br/>",
+        "Year: ", as.character(shp@data$year),"<br/>",
+        sep="") %>%
+        lapply(htmltools::HTML)
+      
+    leaflet(shp, options = leafletOptions(zoomControl = FALSE, minZoom = 1, maxZoom = 10)) %>% 
+        addProviderTiles('Esri.WorldShadedRelief') %>%
+        # addTiles(carto) %>%
+        addPolygons( 
+          color = 'black',
+          fillColor = ~map_palette(value), 
+          stroke=TRUE, 
+          fillOpacity = 0.9, 
+          weight=1,
+          label = map_text,
+          highlightOptions = highlightOptions(
+            weight = 1,
+            fillColor = 'white',
+            fillOpacity = 1,
+            color = "white",
+            opacity = 1.0,
+            bringToFront = TRUE,
+            sendToBack = TRUE
+          ),
+          labelOptions = labelOptions( 
+            noHide = FALSE,
+            style = list("font-weight" = "normal", padding = "3px 8px"), 
+            textsize = "13px", 
+            direction = "auto"
+          )
+        ) %>% 
+        # setView(lat=0, lng=0 , zoom=1.7) %>%
+        # setView(lat=mp$lat, lng=mp$lon , zoom=mp$the_zoom) %>%
+        addLegend(pal=map_palette,  values=~value, opacity=0.9, position = "bottomleft", na.label = "NA" )
+    }
+    
+  })
+  
 }
 
 app <- function(){
