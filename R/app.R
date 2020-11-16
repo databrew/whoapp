@@ -213,10 +213,28 @@ app_server <- function(input, output, session) {
       pd <- dat %>% filter(country %in% country_names, 
                            year %in% year_names, 
                            indicator_code %in% ind_names)
-      # save(pd, file = 'bar_pd.rda')
-      ggplot(pd, aes(year, value, fill=country)) +
-        geom_bar(stat='identity', position = 'dodge')
-      
+      if(nrow(pd)==0){
+        NULL
+      } else {
+        # save(pd, file = 'bar_pd.rda')
+        # Make tooltip
+        plot_text <- paste(
+          "Indicator: ",  pd$indicator_code,"<br>",
+          "Country: ", pd$country,"<br>",
+          "Value: ",round(pd$value, digits = 2), "<br>",
+          "Year: ", as.character(pd$year),"<br>",
+          sep="") %>%
+          lapply(htmltools::HTML)
+        
+        p <- ggplot(pd, aes(year, value, fill=country, text = plot_text)) +
+          geom_bar(stat='identity', position = 'dodge') +
+          labs(x = '', 
+               y = '%') +
+          theme_bw()
+        ggplotly(p, tooltip = 'text')
+        
+      }
+     
     }
   })
   
@@ -250,14 +268,30 @@ app_server <- function(input, output, session) {
     if(is.null(year_names)){
       NULL
     } else {
+   
       pd <- dat %>% filter(country %in% country_names, 
                            year %in% year_names, 
                            indicator_code %in% ind_names)
-      # save(pd, file = 'point_pd.rda')
-      ggplot(pd, aes(year, value, color=indicator_code)) +
-        geom_point() +
-        geom_line(aes(group=indicator_code))
-
+      if(nrow(pd)==0){
+        NULL
+      } else {
+        plot_text <- paste(
+          "Indicator: ",  pd$indicator_code,"<br>",
+          "Country: ", pd$country,"<br>",
+          "Value: ",round(pd$value, digits = 2), "<br>",
+          "Year: ", as.character(pd$year),"<br>",
+          sep="") %>%
+          lapply(htmltools::HTML)
+        
+        # save(pd, file = 'point_pd.rda')
+        p <-  ggplot(pd, aes(year, value, color=indicator_code, text = plot_text)) +
+          geom_point() +
+          geom_line(aes(group=indicator_code)) +
+          labs(x = '', 
+               y = '%') +
+          theme_bw()
+        ggplotly(p, tooltip = 'text')
+      }
     }
   })
   
