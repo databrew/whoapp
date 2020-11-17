@@ -99,7 +99,8 @@ app_ui <- function(request) {
                        fluidPage(
                          fluidRow(
                            column(4,
-                                  selectInput('country_1', 'Select country',choices = c(unique(dat$country)),selected = c(unique(dat$country)), multiple = TRUE),
+                                  p('Select one or more countries, an indicator, and years to visualize in the barplot'),
+                                  selectInput('country_1', 'Select countries',choices = c(unique(dat$country)),selected = c(unique(dat$country)), multiple = TRUE),
                                   uiOutput('ui_inputs_1')),
                            column(8, 
                                   plotlyOutput('bar_plot'))
@@ -110,6 +111,7 @@ app_ui <- function(request) {
                        fluidPage(
                          fluidRow(
                            column(4,
+                                  p('Select one or more indicators, a country, and years to visualize in the line plot'),
                                   selectInput('ind_2', 'Select indicators',choices = c(unique(dat$indicator_code)),selected = c('cataincidence_q1', 'cataincidence_q2','cataincidence_q3', 'cataincidence_q4', 'cataincidence_q5'), multiple = TRUE),
                                   uiOutput('ui_inputs_2')),
                            column(8, 
@@ -121,8 +123,9 @@ app_ui <- function(request) {
               tabPanel('Map',
                        fluidPage(
                          fluidRow(
+                           p('Select an indicator and year to show on the map'),
                            column(3,
-                                  sliderInput('year_3', 'Choose a year', min = min(as.numeric(dat$year)), max = max(as.numeric(dat$year)), step = 1, value = min(dat$year), animate = TRUE)),
+                                  sliderInput('year_3', 'Choose a year', min = min(as.numeric(dat$year)), max = max(as.numeric(dat$year)), step = 1, value = min(dat$year), animate = TRUE, sep = '')),
                            column(3,
                                   uiOutput('ui_inputs_3')
                                   ),
@@ -364,13 +367,14 @@ app_server <- function(input, output, session) {
   
   # map
   output$map_1 <- renderLeaflet({
-    year_name <- input$year_3
+    year_name <-as.character( input$year_3)
     ind_name <- input$ind_3
     if(is.null(ind_name)){
       NULL
     } else {
       pd <- whoapp::dat %>% filter(year==year_name,
                            indicator_code==ind_name)
+      # save(pd, file='map_pd.rda')
       shp <- whoapp::world
       shp@data <- shp@data %>% dplyr::left_join(pd, by=c('NAME'='country'))
       na_rows <- which(!is.na(shp@data$value))
