@@ -35,6 +35,19 @@ app_ui <- function(request) {
             icon=icon("archway")),
           
           menuItem(
+            text = 'Data explorer',
+            tabName = 'data_explorer',
+            icon = icon('eye'),
+            menuSubItem(
+              text="Interactive table",
+              tabName="interactive_table",
+              icon=icon("table")),
+            menuSubItem(
+              text="Data download",
+              tabName="data_download",
+              icon=icon("download")) 
+          ), 
+          menuItem(
             text = 'About',
             tabName = 'about',
             icon = icon("cog", lib = "glyphicon"))
@@ -56,6 +69,28 @@ app_ui <- function(request) {
         # ),
         
         tabItems(
+          
+          
+          tabItem(
+            tabName = 'interactive_table',
+            fluidPage(
+              prettify(whoapp::dat, nrows = nrow(whoapp::dat),
+                       download_options = TRUE)
+            )
+          ),
+          
+          
+          tabItem(
+            tabName = 'data_download',
+            fluidPage(
+              selectInput('country_download',
+                          'Country',
+                          choices = c(sort(unique(whoapp::dat$country)))),
+              downloadButton("download_data", "Download")
+              
+            )
+            
+          ),
           tabItem(
             tabName="main",
             navbarPage(
@@ -87,7 +122,7 @@ app_ui <- function(request) {
                        fluidPage(
                          fluidRow(
                            column(3,
-                                  selectInput('year_3', 'Choose a year', choices=unique(dat$year), selected = sort(unique(dat$year))[1])),
+                                  sliderInput('year_3', 'Choose a year', min = min(as.numeric(dat$year)), max = max(as.numeric(dat$year)), step = 1, value = min(dat$year), animate = TRUE)),
                            column(3,
                                   uiOutput('ui_inputs_3')
                                   ),
@@ -178,6 +213,18 @@ mobile_golem_add_external_resources <- function(){
 app_server <- function(input, output, session) {
   
   message('Working directory is :', getwd())
+  
+  output$download_data <- downloadHandler(
+    filename = function() {
+      paste(input$country_download, ".csv", sep = "")
+    },
+    content = function(file) {
+      the_country <- input$country_download
+      out <- whoapp::dat %>% filter(country == the_country)
+      write.csv(out, file, row.names = FALSE)
+    }
+  )
+  
   
   #  ANALYSIS BY COUNTRY SECTION ###########################
   # render ui for other inputs based on country
@@ -298,7 +345,7 @@ app_server <- function(input, output, session) {
   #  MAP SECTION ###########################
   output$ui_inputs_3 <- renderUI({
     # country_names <- 'Bulgaria'
-    year_name <- input$year_3
+    year_name <- as.character(input$year_3)
     if(is.null(year_name)){
       NULL
     } else {
